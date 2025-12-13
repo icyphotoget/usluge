@@ -1,11 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseBrowser";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+
+function safeNext(nextParam: string | null) {
+  // allow only internal paths to avoid open-redirect issues
+  if (!nextParam) return "/";
+  if (!nextParam.startsWith("/")) return "/";
+  if (nextParam.startsWith("//")) return "/";
+  return nextParam;
+}
 
 export default function LoginPage() {
   const r = useRouter();
+  const sp = useSearchParams();
+
+  const nextPath = useMemo(() => safeNext(sp.get("next")), [sp]);
 
   const [mode, setMode] = useState<"login" | "register">("login");
   const [displayName, setDisplayName] = useState("");
@@ -16,12 +27,12 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // If already logged in, go home
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) r.push("/");
+      if (data.session) r.push(nextPath);
     });
-  }, [r]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,23 +44,20 @@ export default function LoginPage() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: {
-            data: { display_name: displayName || email },
-          },
+          options: { data: { display_name: displayName || email } },
         });
         if (error) throw error;
 
-        // If email confirmations are ON, the user might need to confirm email first.
-        // We'll still send them to home; you can show a message if you prefer.
-        r.push("/");
+        // If email confirmation is ON, session might not exist yet.
+        // In that case, user will confirm email then login; redirect will work after login.
+        const { data: sess } = await supabase.auth.getSession();
+        if (sess.session) r.push(nextPath);
+        else r.push("/login?next=" + encodeURIComponent(nextPath));
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        r.push("/");
+        r.push(nextPath);
       }
     } catch (err: any) {
       setError(err?.message ?? "Greška");
@@ -110,17 +118,16 @@ export default function LoginPage() {
             setError(null);
             setMode(mode === "login" ? "register" : "login");
           }}
+          type="button"
         >
           {mode === "login"
             ? "Nemaš račun? Registriraj se"
             : "Već imaš račun? Prijavi se"}
         </button>
 
-        {mode === "register" && (
-          <p className="mt-4 text-xs text-gray-600">
-            Ako je uključena potvrda emaila, nakon registracije provjeri inbox i potvrdi email prije prijave.
-          </p>
-        )}
+        <p className="mt-4 text-xs text-gray-600">
+          Nakon prijave vraćamo te na: <span className="font-mono">{nextPath}</span>
+        </p>
       </div>
     </div>
   );

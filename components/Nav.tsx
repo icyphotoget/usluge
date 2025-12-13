@@ -8,13 +8,17 @@ import { useRouter } from "next/navigation";
 export default function Nav() {
   const r = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  const [isAuthed, setIsAuthed] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      setEmail(data.session?.user.email ?? null);
+      const sess = data.session;
+      setIsAuthed(!!sess);
+      setEmail(sess?.user.email ?? null);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthed(!!session);
       setEmail(session?.user.email ?? null);
     });
 
@@ -23,25 +27,55 @@ export default function Nav() {
 
   async function logout() {
     await supabase.auth.signOut();
-    r.push("/login");
+    r.push("/");
+  }
+
+  function goAuthed(path: string) {
+    if (!isAuthed) {
+      const next = encodeURIComponent(path);
+      r.push(`/login?next=${next}`);
+      return;
+    }
+    r.push(path);
   }
 
   return (
-    <div className="border-b">
+    <div className="border-b bg-white">
       <div className="mx-auto max-w-4xl p-4 flex items-center justify-between">
         <div className="flex gap-4 items-center">
-          <Link href="/" className="font-semibold">Usluge</Link>
-          <Link href="/novi-oglas" className="text-sm underline">Novi oglas</Link>
-          <Link href="/poruke" className="text-sm underline">Poruke</Link>
+          <Link href="/" className="font-semibold">
+            Usluge
+          </Link>
+
+          <button
+            className="text-sm underline"
+            onClick={() => goAuthed("/novi-oglas")}
+            type="button"
+          >
+            Novi oglas
+          </button>
+
+          <button
+            className="text-sm underline"
+            onClick={() => goAuthed("/poruke")}
+            type="button"
+          >
+            Poruke
+          </button>
         </div>
+
         <div className="flex gap-3 items-center">
-          {email ? (
+          {isAuthed ? (
             <>
               <span className="text-sm text-gray-600">{email}</span>
-              <button className="text-sm underline" onClick={logout}>Odjava</button>
+              <button className="text-sm underline" onClick={logout} type="button">
+                Odjava
+              </button>
             </>
           ) : (
-            <Link className="text-sm underline" href="/login">Prijava</Link>
+            <Link className="text-sm underline" href={`/login?next=${encodeURIComponent("/")}`}>
+              Prijava
+            </Link>
           )}
         </div>
       </div>
