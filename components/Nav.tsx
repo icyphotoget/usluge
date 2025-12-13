@@ -11,18 +11,27 @@ export default function Nav() {
   const [isAuthed, setIsAuthed] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    let mounted = true;
+
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+
       const sess = data.session;
       setIsAuthed(!!sess);
       setEmail(sess?.user.email ?? null);
-    });
+    })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
       setIsAuthed(!!session);
       setEmail(session?.user.email ?? null);
     });
 
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   async function logout() {
