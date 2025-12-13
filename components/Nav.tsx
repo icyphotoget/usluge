@@ -16,10 +16,8 @@ export default function Nav() {
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
-
-      const sess = data.session;
-      setIsAuthed(!!sess);
-      setEmail(sess?.user.email ?? null);
+      setIsAuthed(!!data.session);
+      setEmail(data.session?.user.email ?? null);
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -71,18 +69,33 @@ export default function Nav() {
           >
             Poruke
           </button>
+
+          <button
+            className="text-sm underline"
+            onClick={() => goAuthed("/profil")}
+            type="button"
+          >
+            Profil
+          </button>
         </div>
 
         <div className="flex gap-3 items-center">
           {isAuthed ? (
             <>
               <span className="text-sm text-gray-600">{email}</span>
-              <button className="text-sm underline" onClick={logout} type="button">
+              <button
+                className="text-sm underline"
+                onClick={logout}
+                type="button"
+              >
                 Odjava
               </button>
             </>
           ) : (
-            <Link className="text-sm underline" href={`/login?next=${encodeURIComponent("/")}`}>
+            <Link
+              className="text-sm underline"
+              href={`/login?next=${encodeURIComponent("/")}`}
+            >
               Prijava
             </Link>
           )}
