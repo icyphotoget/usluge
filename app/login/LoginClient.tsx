@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseBrowser";
 import { useRouter, useSearchParams } from "next/navigation";
 
 function safeNext(nextParam: string | null) {
+  // allow only internal paths to avoid open-redirect issues
   if (!nextParam) return "/";
   if (!nextParam.startsWith("/")) return "/";
   if (nextParam.startsWith("//")) return "/";
@@ -33,6 +34,28 @@ export default function LoginClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function loginWithGoogle() {
+    setError(null);
+    setBusy(true);
+
+    try {
+      // After Google callback, Supabase will send the browser to redirectTo.
+      // We redirect back into /login?next=... so our existing session check can push(nextPath).
+      const redirectTo = `${window.location.origin}/login?next=${encodeURIComponent(nextPath)}`;
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo },
+      });
+
+      if (error) throw error;
+      // no router push here — browser navigates to Google OAuth flow
+    } catch (e: any) {
+      setError(e?.message ?? "Greška");
+      setBusy(false);
+    }
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -47,6 +70,7 @@ export default function LoginClient() {
         });
         if (error) throw error;
 
+        // If email confirmation is ON, session might not exist yet.
         const { data: sess } = await supabase.auth.getSession();
         if (sess.session) r.push(nextPath);
         else r.push("/login?next=" + encodeURIComponent(nextPath));
@@ -70,7 +94,24 @@ export default function LoginClient() {
           {mode === "login" ? "Prijava" : "Registracija"}
         </h1>
 
-        <form onSubmit={onSubmit} className="mt-4 space-y-3">
+        {/* GOOGLE */}
+        <button
+          type="button"
+          onClick={loginWithGoogle}
+          disabled={busy}
+          className="mt-4 w-full rounded-xl border p-3 font-medium hover:bg-gray-50 disabled:opacity-60"
+        >
+          Nastavi s Google
+        </button>
+
+        <div className="my-3 flex items-center gap-3">
+          <div className="h-px flex-1 bg-gray-200" />
+          <div className="text-xs text-gray-500">ili</div>
+          <div className="h-px flex-1 bg-gray-200" />
+        </div>
+
+        {/* EMAIL/PASS FORM */}
+        <form onSubmit={onSubmit} className="space-y-3">
           {mode === "register" && (
             <input
               className="w-full rounded-xl border p-3"
@@ -103,7 +144,7 @@ export default function LoginClient() {
 
           <button
             disabled={busy}
-            className="w-full rounded-xl border p-3 font-medium disabled:opacity-60"
+            className="w-full rounded-xl bg-black p-3 font-medium text-white hover:opacity-90 disabled:opacity-60"
           >
             {busy ? "..." : mode === "login" ? "Prijavi se" : "Registriraj se"}
           </button>
