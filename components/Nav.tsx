@@ -8,14 +8,21 @@ import { fetchUnreadCount } from "@/lib/unread";
 
 export default function Nav() {
   const r = useRouter();
+
   const [email, setEmail] = useState<string | null>(null);
   const [isAuthed, setIsAuthed] = useState(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
   useEffect(() => {
     let channel: any = null;
+    let alive = true;
 
-    async function init() {
+    async function refresh(userId: string) {
+      const n = await fetchUnreadCount(userId);
+      if (alive) setUnreadCount(n);
+    }
+
+    async function startForSession() {
       const { data } = await supabase.auth.getSession();
       const sess = data.session;
 
@@ -24,38 +31,25 @@ export default function Nav() {
 
       if (!sess?.user) {
         setUnreadCount(0);
+        if (channel) channel.unsubscribe();
         return;
       }
 
-      // initial unread load
-      try {
-        const n = await fetchUnreadCount(sess.user.id);
-        setUnreadCount(n);
-      } catch {
-        // ignore
-      }
+      await refresh(sess.user.id);
 
-      // realtime: new messages + read updates
+      // realtime - safe (ne filtriramo na receiver_id jer ga nema)
+      if (channel) channel.unsubscribe();
       channel = supabase
         .channel("nav-unread-messages")
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "messages" },
-          async () => {
-            try {
-              const n = await fetchUnreadCount(sess.user.id);
-              setUnreadCount(n);
-            } catch {
-              // ignore
-            }
-          }
-        )
+        .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
+          refresh(sess.user.id);
+        })
         .subscribe();
     }
 
-    init();
+    startForSession();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthed(!!session);
       setEmail(session?.user.email ?? null);
 
@@ -64,17 +58,11 @@ export default function Nav() {
         if (channel) channel.unsubscribe();
         return;
       }
-
-      // reload unread on auth change
-      try {
-        const n = await fetchUnreadCount(session.user.id);
-        setUnreadCount(n);
-      } catch {
-        setUnreadCount(0);
-      }
+      startForSession();
     });
 
     return () => {
+      alive = false;
       sub.subscription.unsubscribe();
       if (channel) channel.unsubscribe();
     };
@@ -83,15 +71,6 @@ export default function Nav() {
   async function logout() {
     await supabase.auth.signOut();
     r.push("/");
-  }
-
-  function goAuthed(path: string) {
-    if (!isAuthed) {
-      const next = encodeURIComponent(path);
-      r.push(`/login?next=${next}`);
-      return;
-    }
-    r.push(path);
   }
 
   return (
@@ -106,24 +85,28 @@ export default function Nav() {
             Oglasi
           </Link>
 
-          <button className="text-sm underline" onClick={() => goAuthed("/novi-oglas")} type="button">
-            Novi oglas
-          </button>
+          {isAuthed && (
+            <>
+              <Link className="text-sm underline" href="/novi-oglas">
+                Novi oglas
+              </Link>
 
-          <button className="text-sm underline" onClick={() => goAuthed("/poruke")} type="button">
-            <span className="inline-flex items-center">
-              Poruke
-              {isAuthed && unreadCount > 0 && (
-                <span className="ml-2 inline-flex items-center justify-center rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">
-                  {unreadCount}
+              <Link className="text-sm underline" href="/poruke">
+                <span className="inline-flex items-center">
+                  Poruke
+                  {unreadCount > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">
+                      {unreadCount}
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
-          </button>
+              </Link>
 
-          <button className="text-sm underline" onClick={() => goAuthed("/profil")} type="button">
-            Profil
-          </button>
+              <Link className="text-sm underline" href="/profil">
+                Profil
+              </Link>
+            </>
+          )}
         </div>
 
         <div className="flex gap-3 items-center">
