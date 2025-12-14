@@ -4,116 +4,92 @@ import Nav from "@/components/Nav";
 import { supabase } from "@/lib/supabaseBrowser";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
-type ConversationRow = {
-  id: string;
-  post_id: string;
-  user_a_id: string;
-  user_b_id: string;
-  last_message_at: string;
-};
+type Conv = { id: string; user1_id: string; user2_id: string };
 
-type PostRow = { id: string; title: string; city: string };
-
-export default function InboxPage() {
-  const [items, setItems] = useState<
-    Array<{ convo: ConversationRow; post: PostRow | null; otherUserId: string }>
-  >([]);
+export default function PorukePage() {
+  const r = useRouter();
   const [me, setMe] = useState<string | null>(null);
+  const [convs, setConvs] = useState<Conv[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const sess = await supabase.auth.getSession();
-      const uid = sess.data.session?.user.id ?? null;
-      if (!uid) {
-        location.href = "/login";
+      setLoading(true);
+      setErr(null);
+
+      const { data: sess } = await supabase.auth.getSession();
+      const user = sess.session?.user;
+      if (!user) {
+        r.push(`/login?next=${encodeURIComponent("/poruke")}`);
         return;
       }
-      setMe(uid);
 
-      const { data: convos, error } = await supabase
-        .from("conversations")
-        .select("id,post_id,user_a_id,user_b_id,last_message_at")
-        .order("last_message_at", { ascending: false })
-        .limit(50);
+      setMe(user.id);
 
-      if (error) return;
+      // fetch convs where user is participant
+      const a = await supabase.from("conversations").select("id,user1_id,user2_id").eq("user1_id", user.id);
+      const b = await supabase.from("conversations").select("id,user1_id,user2_id").eq("user2_id", user.id);
 
-      const postIds = (convos ?? []).map((c) => c.post_id);
-      const postsResp = await supabase
-        .from("posts")
-        .select("id,title,city")
-        .in("id", postIds);
+      if (a.error) {
+        setErr(a.error.message);
+        setLoading(false);
+        return;
+      }
+      if (b.error) {
+        setErr(b.error.message);
+        setLoading(false);
+        return;
+      }
 
-      const postsMap = new Map<string, PostRow>();
-      (postsResp.data ?? []).forEach((p) => postsMap.set(p.id, p as any));
+      const all = ([...(a.data ?? []), ...(b.data ?? [])] as any) as Conv[];
+      setConvs(all);
 
-      const mapped = (convos ?? []).map((c) => ({
-        convo: c as any,
-        post: postsMap.get(c.post_id) ?? null,
-        otherUserId: c.user_a_id === uid ? c.user_b_id : c.user_a_id,
-      }));
+      // mark as read: all messages in my conversations NOT sent by me
+      const convIds = all.map((c) => c.id);
+      if (convIds.length > 0) {
+        await supabase
+          .from("messages")
+          .update({ is_read: true, read_at: new Date().toISOString() })
+          .in("conversation_id", convIds)
+          .eq("is_read", false)
+          .neq("sender_id", user.id);
+      }
 
-      setItems(mapped);
+      setLoading(false);
     })();
-  }, []);
-
-  // realtime: update inbox ordering when conversations change (last_message_at updated)
-  useEffect(() => {
-    if (!me) return;
-
-    const channel = supabase
-      .channel("realtime-inbox")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "conversations" },
-        (payload) => {
-          const updated = payload.new as any as ConversationRow;
-          setItems((prev) => {
-            const idx = prev.findIndex((x) => x.convo.id === updated.id);
-            if (idx === -1) return prev;
-            const copy = [...prev];
-            copy[idx] = { ...copy[idx], convo: updated };
-            copy.sort(
-              (a, b) =>
-                new Date(b.convo.last_message_at).getTime() -
-                new Date(a.convo.last_message_at).getTime()
-            );
-            return copy;
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [me]);
+  }, [r]);
 
   return (
     <div>
       <Nav />
       <div className="mx-auto max-w-3xl p-4">
-        <h1 className="text-xl font-semibold">Poruke</h1>
+        <h1 className="text-2xl font-semibold">Poruke</h1>
 
-        <div className="mt-4 space-y-3">
-          {items.map(({ convo, post }) => (
-            <Link
-              key={convo.id}
-              href={`/poruke/${convo.id}`}
-              className="block rounded-2xl border p-4 hover:shadow-sm"
-            >
-              <div className="font-medium">{post?.title ?? "Oglas"}</div>
-              <div className="text-sm text-gray-600">
-                {post?.city ?? ""} · Zadnje: {new Date(convo.last_message_at).toLocaleString()}
-              </div>
-            </Link>
-          ))}
+        {err && (
+          <div className="mt-4 rounded-2xl border p-4 text-sm text-red-600 bg-white">{err}</div>
+        )}
 
-          {items.length === 0 && (
-            <div className="text-sm text-gray-600">Nema razgovora još.</div>
-          )}
-        </div>
+        {loading ? (
+          <div className="mt-4 text-sm text-gray-600">Učitavam...</div>
+        ) : convs.length === 0 ? (
+          <div className="mt-4 text-sm text-gray-600">Nema razgovora.</div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {convs.map((c) => (
+              <Link
+                key={c.id}
+                href={`/poruke/${c.id}`}
+                className="block rounded-2xl border p-4 bg-white hover:shadow-sm"
+              >
+                <div className="text-sm text-gray-600">Razgovor</div>
+                <div className="font-medium">Conversation ID: {c.id}</div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
