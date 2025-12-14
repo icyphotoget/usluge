@@ -6,101 +6,104 @@ import { supabase } from "@/lib/supabaseBrowser";
 import { useRouter } from "next/navigation";
 
 export default function Nav() {
-  const r = useRouter();
+  const router = useRouter();
+
   const [email, setEmail] = useState<string | null>(null);
   const [isAuthed, setIsAuthed] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
-
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
-      setIsAuthed(!!data.session);
-      setEmail(data.session?.user.email ?? null);
-    })();
+    supabase.auth.getSession().then(({ data }) => {
+      const sess = data.session;
+      setIsAuthed(!!sess);
+      setEmail(sess?.user.email ?? null);
+      setReady(true);
+    });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
       setIsAuthed(!!session);
       setEmail(session?.user.email ?? null);
     });
 
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
-    };
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   async function logout() {
     await supabase.auth.signOut();
-    r.push("/");
+    router.push("/");
   }
 
   function goAuthed(path: string) {
     if (!isAuthed) {
-      const next = encodeURIComponent(path);
-      r.push(`/login?next=${next}`);
+      router.push(`/login?next=${encodeURIComponent(path)}`);
       return;
     }
-    r.push(path);
+    router.push(path);
   }
 
+  if (!ready) return null; // sprječava hydration flicker
+
   return (
-    <div className="border-b bg-white">
-      <div className="mx-auto max-w-4xl p-4 flex items-center justify-between">
-        <div className="flex gap-4 items-center">
-          <Link href="/" className="font-semibold">
+    <header className="border-b bg-white">
+      <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
+        {/* LEFT */}
+        <nav className="flex items-center gap-4">
+          <Link href="/" className="font-semibold text-lg">
             Usluge
           </Link>
 
+          <Link href="/oglasi" className="text-sm underline">
+            Oglasi
+          </Link>
+
           <button
+            type="button"
             className="text-sm underline"
             onClick={() => goAuthed("/novi-oglas")}
-            type="button"
           >
             Novi oglas
           </button>
 
           <button
+            type="button"
             className="text-sm underline"
             onClick={() => goAuthed("/poruke")}
-            type="button"
           >
             Poruke
           </button>
 
-          <button
-            className="text-sm underline"
-            onClick={() => goAuthed("/profil")}
-            type="button"
-          >
-            Profil
-          </button>
-        </div>
+          {isAuthed && (
+            <Link href="/profil" className="text-sm underline">
+              Profil
+            </Link>
+          )}
+        </nav>
 
-        <div className="flex gap-3 items-center">
+        {/* RIGHT */}
+        <div className="flex items-center gap-3">
           {isAuthed ? (
             <>
-              <span className="text-sm text-gray-600">{email}</span>
+              <span className="text-sm text-gray-600 truncate max-w-[200px]">
+                {email}
+              </span>
               <button
-                className="text-sm underline"
-                onClick={logout}
                 type="button"
+                onClick={logout}
+                className="text-sm underline"
               >
                 Odjava
               </button>
             </>
           ) : (
             <Link
-              className="text-sm underline"
               href={`/login?next=${encodeURIComponent("/")}`}
+              className="text-sm underline"
             >
               Prijava
             </Link>
           )}
         </div>
       </div>
-    </div>
+    </header>
   );
 }
