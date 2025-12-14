@@ -8,12 +8,22 @@ import { useRouter } from "next/navigation";
 
 type Category = { id: number; name: string };
 
-function cardStyle(seed: number) {
-  // stabilan “banner” look bez slika (možeš kasnije zamijeniti slikama iz /public)
-  const hue = (seed * 47) % 360;
-  return {
-    background: `linear-gradient(135deg, hsl(${hue} 70% 45%), hsl(${(hue + 35) % 360} 75% 55%))`,
-  } as React.CSSProperties;
+/**
+ * Map: category name (as in Supabase categories.name) -> image in /public/categories/
+ * IMPORTANT: names must match exactly (case + spaces + slashes).
+ */
+const categoryImages: Record<string, string> = {
+  "Čuvanje pasa": "/categories/dog-care.png",
+  "Šetanje pasa": "/categories/dogwalk.png",
+  "Čišćenje / Spremačica": "/categories/cleaning.png",
+  "Čuvanje djece": "/categories/childcare.png",
+  "Majstor / Popravci": "/categories/repairs.png",
+  "Instrukcije": "/categories/tutoring.png",
+};
+
+function imgForCategory(name: string) {
+  // fallback if the category name is not in the map
+  return categoryImages[name] ?? "/categories/dog-care.png";
 }
 
 export default function LandingClient() {
@@ -117,10 +127,7 @@ export default function LandingClient() {
                   Pregledaj oglase
                 </button>
 
-                <Link
-                  className="rounded-xl border px-5 py-3 font-medium"
-                  href="/novi-oglas"
-                >
+                <Link className="rounded-xl border px-5 py-3 font-medium" href="/novi-oglas">
                   Objavi oglas
                 </Link>
 
@@ -166,7 +173,9 @@ export default function LandingClient() {
           {loadingCats ? (
             <div className="mt-4 text-sm text-gray-600">Učitavam kategorije...</div>
           ) : topCats.length === 0 ? (
-            <div className="mt-4 text-sm text-gray-600">Nema kategorija (provjeri tablicu categories).</div>
+            <div className="mt-4 text-sm text-gray-600">
+              Nema kategorija (provjeri tablicu categories).
+            </div>
           ) : (
             <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {topCats.map((c) => (
@@ -174,15 +183,29 @@ export default function LandingClient() {
                   key={c.id}
                   type="button"
                   onClick={() => goToOglasi({ cat: String(c.id) })}
-                  className="group relative overflow-hidden rounded-3xl border text-left shadow-sm"
+                  className="group relative overflow-hidden rounded-3xl border text-left shadow-sm hover:shadow-md transition"
                 >
-                  <div className="h-28 p-5 text-white" style={cardStyle(c.id)}>
-                    <div className="text-sm/none opacity-90">Kategorija</div>
-                    <div className="mt-2 text-2xl font-semibold">{c.name}</div>
+                  {/* IMAGE HEADER */}
+                  <div className="relative h-28">
+                    <img
+                      src={imgForCategory(c.name)}
+                      alt={c.name}
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-black/25" />
+                    <div className="relative p-5 text-white">
+                      <div className="text-sm/none opacity-90">Kategorija</div>
+                      <div className="mt-2 text-2xl font-semibold">{c.name}</div>
+                    </div>
                   </div>
+
+                  {/* FOOTER */}
                   <div className="flex items-center justify-between bg-white p-4">
                     <div className="text-sm text-gray-600">Pogledaj oglase</div>
-                    <div className="text-sm font-medium group-hover:underline">→</div>
+                    <div className="text-sm font-medium transition-transform group-hover:translate-x-1">
+                      →
+                    </div>
                   </div>
                 </button>
               ))}
