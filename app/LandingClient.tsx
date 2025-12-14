@@ -21,8 +21,8 @@ const categoryImages: Record<string, string> = {
   "Instrukcije": "/categories/tutoring.png",
 };
 
+// Fallback if a category name isn't mapped (won't crash, still renders)
 function imgForCategory(name: string) {
-  // fallback if the category name is not in the map
   return categoryImages[name] ?? "/categories/dog-care.png";
 }
 
@@ -70,10 +70,14 @@ export default function LandingClient() {
 
       <div className="mx-auto max-w-5xl p-4">
         {/* HERO */}
-        <div className="rounded-3xl border bg-white p-6 shadow-sm">
-          <div className="grid gap-6 md:grid-cols-2 md:items-center">
+        <div className="rounded-3xl border bg-white p-6 shadow-sm relative overflow-hidden">
+          {/* soft blobs */}
+          <div className="pointer-events-none absolute -top-28 -right-28 h-80 w-80 rounded-full bg-purple-200/40 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-28 -left-28 h-80 w-80 rounded-full bg-emerald-200/40 blur-3xl" />
+
+          <div className="relative grid gap-6 md:grid-cols-2 md:items-center">
             <div>
-              <h1 className="text-3xl font-semibold leading-tight">
+              <h1 className="text-3xl font-bold leading-tight">
                 Pronađi ili ponudi usluge u svom gradu.
               </h1>
               <p className="mt-3 text-gray-600">
@@ -83,19 +87,19 @@ export default function LandingClient() {
               {/* SEARCH */}
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <input
-                  className="rounded-xl border p-3"
+                  className="rounded-xl border p-3 bg-white"
                   placeholder="Traži (npr. čuvanje pasa)"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                 />
                 <input
-                  className="rounded-xl border p-3"
+                  className="rounded-xl border p-3 bg-white"
                   placeholder="Grad (npr. Zagreb)"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                 />
                 <select
-                  className="rounded-xl border p-3"
+                  className="rounded-xl border p-3 bg-white"
                   value={type}
                   onChange={(e) => setType(e.target.value as any)}
                 >
@@ -105,7 +109,7 @@ export default function LandingClient() {
                 </select>
 
                 <select
-                  className="rounded-xl border p-3"
+                  className="rounded-xl border p-3 bg-white"
                   value={catId}
                   onChange={(e) => setCatId(e.target.value)}
                 >
@@ -120,37 +124,40 @@ export default function LandingClient() {
 
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
-                  className="rounded-xl bg-black px-5 py-3 text-white font-medium"
+                  className="rounded-xl bg-black px-5 py-3 text-white font-medium hover:opacity-90 transition"
                   onClick={() => goToOglasi()}
                   type="button"
                 >
                   Pregledaj oglase
                 </button>
 
-                <Link className="rounded-xl border px-5 py-3 font-medium" href="/novi-oglas">
+                <Link
+                  className="rounded-xl border px-5 py-3 font-medium hover:bg-gray-50 transition"
+                  href="/novi-oglas"
+                >
                   Objavi oglas
                 </Link>
 
-                <Link className="underline text-sm self-center" href="/oglasi">
+                <Link className="underline text-sm self-center hover:opacity-80" href="/oglasi">
                   Ili odmah vidi sve oglase →
                 </Link>
               </div>
             </div>
 
             {/* SIDE CARD */}
-            <div className="rounded-3xl border bg-gray-50 p-6">
+            <div className="rounded-3xl border bg-white/70 backdrop-blur p-6">
               <div className="text-sm text-gray-600">Kako radi</div>
               <ol className="mt-3 space-y-3 text-sm">
                 <li className="rounded-2xl border bg-white p-4">
-                  <div className="font-medium">1) Pregledaj</div>
+                  <div className="font-semibold">1) Pregledaj</div>
                   <div className="text-gray-600">Oglasi su javni — bez prijave.</div>
                 </li>
                 <li className="rounded-2xl border bg-white p-4">
-                  <div className="font-medium">2) Objavi ili pošalji poruku</div>
+                  <div className="font-semibold">2) Objavi ili pošalji poruku</div>
                   <div className="text-gray-600">Za objavu/poruke tražimo login.</div>
                 </li>
                 <li className="rounded-2xl border bg-white p-4">
-                  <div className="font-medium">3) Dogovor</div>
+                  <div className="font-semibold">3) Dogovor</div>
                   <div className="text-gray-600">Sve ide direktno između ljudi.</div>
                 </li>
               </ol>
@@ -158,14 +165,15 @@ export default function LandingClient() {
           </div>
         </div>
 
-        {/* KATEGORIJE BANNERI */}
+        {/* KATEGORIJE */}
         <div className="mt-10">
           <div className="flex items-end justify-between gap-3">
             <div>
               <h2 className="text-xl font-semibold">Kategorije</h2>
               <p className="text-sm text-gray-600">Klikni kategoriju i vidi oglase.</p>
             </div>
-            <Link className="text-sm underline" href="/oglasi">
+
+            <Link className="text-sm rounded-xl border px-3 py-2 hover:bg-gray-50 transition" href="/oglasi">
               Sve kategorije →
             </Link>
           </div>
@@ -183,7 +191,7 @@ export default function LandingClient() {
                   key={c.id}
                   type="button"
                   onClick={() => goToOglasi({ cat: String(c.id) })}
-                  className="group relative overflow-hidden rounded-3xl border text-left shadow-sm hover:shadow-md transition"
+                  className="group relative overflow-hidden rounded-3xl border text-left shadow-sm transition hover:shadow-md hover:-translate-y-0.5"
                 >
                   {/* IMAGE HEADER */}
                   <div className="relative h-28">
@@ -193,7 +201,10 @@ export default function LandingClient() {
                       className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-black/25" />
+
+                    {/* better readability */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-transparent" />
+
                     <div className="relative p-5 text-white">
                       <div className="text-sm/none opacity-90">Kategorija</div>
                       <div className="mt-2 text-2xl font-semibold">{c.name}</div>
@@ -223,11 +234,14 @@ export default function LandingClient() {
               </div>
             </div>
             <div className="flex gap-3">
-              <Link className="rounded-xl bg-black px-5 py-3 text-white font-medium" href="/novi-oglas">
+              <Link
+                className="rounded-xl bg-black px-5 py-3 text-white font-medium hover:opacity-90 transition"
+                href="/novi-oglas"
+              >
                 Objavi oglas
               </Link>
               <button
-                className="rounded-xl border px-5 py-3 font-medium"
+                className="rounded-xl border px-5 py-3 font-medium hover:bg-gray-50 transition"
                 type="button"
                 onClick={() => goToOglasi()}
               >
